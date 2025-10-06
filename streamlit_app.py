@@ -191,18 +191,75 @@ def main():
     mode = st.sidebar.radio("Input method", ["Manual", "Upload CSV"], index=0)
 
     if mode == "Upload CSV":
-        st.sidebar.caption("CSV must have two columns: stage,count")
-        uploaded = st.sidebar.file_uploader("Upload funnel CSV", type=["csv"]) 
+        st.sidebar.caption("Upload either: (1) stage,count CSV; or (2) Firebase overview CSV")
+        uploaded = st.sidebar.file_uploader("Upload CSV", type=["csv"]) 
+
+        def parse_stage_count_csv(df: pd.DataFrame) -> dict:
+            cols = {c.strip().lower(): c for c in df.columns}
+            if "stage" in cols and "count" in cols:
+                stage_col = cols["stage"]
+                count_col = cols["count"]
+                df2 = df[[stage_col, count_col]].dropna()
+                return {str(r[stage_col]): float(r[count_col]) for _, r in df2.iterrows()}
+            raise KeyError("stage,count columns not found")
+
+        def parse_firebase_overview_csv(raw_text: str) -> dict:
+            # Extract the block starting at 'Event name,Event count'
+            lines = [ln.strip() for ln in raw_text.splitlines()]
+            counts = {}
+            in_block = False
+            for ln in lines:
+                if not in_block and ln.lower().startswith("event name, event count".replace(" ","")):
+                    in_block = True
+                    continue
+                if in_block:
+                    if not ln or ln.startswith("#"):
+                        break
+                    parts = [p.strip() for p in ln.split(",")]
+                    if len(parts) >= 2 and parts[0] and parts[1]:
+                        name = parts[0].strip().lower()
+                        try:
+                            val = float(parts[1])
+                        except Exception:
+                            continue
+                        counts[name] = counts.get(name, 0.0) + val
+            if not counts:
+                # try generic two-column at first non-comment row
+                try:
+                    df_tmp = pd.read_csv(pd.compat.StringIO(raw_text), comment="#", header=0)
+                    return parse_stage_count_csv(df_tmp)
+                except Exception:
+                    return {}
+            # Map to a simple 4-stage funnel
+            installs = counts.get("first_open", 0.0)
+            level_end = counts.get("level_end", 0.0)
+            iap = counts.get("in_app_purchase", 0.0)
+            uninstall = counts.get("app_remove", 0.0)
+            if installs or level_end or iap or uninstall:
+                return {
+                    "Installs": installs,
+                    "Level Completed": level_end,
+                    "In-App Purchase": iap,
+                    "Uninstall": uninstall,
+                }
+            return {}
+
         if uploaded is not None:
             try:
+                # First try simple stage,count
                 df_up = pd.read_csv(uploaded)
-                df_up = df_up.dropna()
-                counts_map = {
-                    str(row["stage"]): float(row["count"]) for _, row in df_up.iterrows()
-                }
-            except Exception as e:
-                st.sidebar.error(f"Could not read CSV: {e}")
-                counts_map = default_counts
+                counts_map = parse_stage_count_csv(df_up)
+            except Exception:
+                try:
+                    # Fallback: treat as Firebase overview style with multiple tables
+                    uploaded.seek(0)
+                    text = uploaded.read().decode("utf-8", errors="ignore")
+                    counts_map = parse_firebase_overview_csv(text)
+                    if not counts_map:
+                        raise ValueError("Unsupported CSV format – expected 'stage,count' or Firebase overview with 'Event name,Event count'.")
+                except Exception as e:
+                    st.sidebar.error(f"Could not read CSV: {e}")
+                    counts_map = default_counts
         else:
             counts_map = default_counts
     else:
