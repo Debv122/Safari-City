@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Safari City — Early Journey Analysis</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 40px; color: #111; }
+    h1, h2 { margin-top: 28px; }
+    h1 { font-size: 26px; }
+    h2 { font-size: 20px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    ul { margin-top: 6px; }
+    .img { margin: 10px 0 24px; }
+    .small { color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Safari City — Early Journey Analysis</h1>
+
+  <h2>1) Executive Summary</h2>
+  <ul>
+    <li>Onboarding is strong; biggest friction occurs at L2–L3 and before Episode‑1 completion.</li>
+    <li>Key spend has a small delay after first win; add instant feedback and guided camera.</li>
+    <li>~3 free boosters over ~10–12 early levels: good when used to teach/rescue, not trivialize.</li>
+    <li>Priorities: smooth L2–L3 difficulty + ad‑continue on 2nd fail; make first key‑spend instant; structure free‑booster grants; add periodic big reveals; ramp monetization post Episode‑1.</li>
+  </ul>
+
+  <h2>2) Early Player Funnel</h2>
+  <div class="img">
+    <img src="funnel_counts.png" alt="Funnel Counts" style="max-width:100%;" />
+  </div>
+  <div class="img">
+    <img src="funnel_conversion.png" alt="Funnel Conversion" style="max-width:100%;" />
+  </div>
+  <p class="small">Stages: Install → Open → Play Tap → Tutorial Complete → L1 Win (First Key) → Spend First Key (Payoff) → Reach L3 → Milestone 1 → Episode‑1 Complete</p>
+
+  <h2>3) Insights</h2>
+  <ul>
+    <li>Largest drop: Reach L3 (autonomy begins). Next: Milestone→Episode‑1 (pacing/payoff gap).</li>
+    <li>Small but important gap: L1 win → key spend; fix discoverability/latency.</li>
+    <li>Out‑of‑Moves / “Don’t Give Up” can end sessions if pay‑gated too early.</li>
+    <li>Free boosters should be spaced and purposeful: teach a mechanic or rescue after a fail.</li>
+  </ul>
+
+  <h2>4) Segmentation Map (summary)</h2>
+  <ul>
+    <li><b>Beginners</b>: learning loop → tips + clear key‑spend CTA.</li>
+    <li><b>Stuck/At‑Risk</b>: fail‑streak or spend friction → ad‑continue on 2nd fail; soften next board.</li>
+    <li><b>Fast/Momentum</b>: quick wins → streaks, skip animations, optional challenges.</li>
+    <li><b>Booster‑Reliant</b>: heavy booster/continue use → value packs later; teach efficient use.</li>
+    <li><b>Decorators</b>: many renovations → themes, collections, before/after.</li>
+  </ul>
+
+  <h2>5) Recommendations (with success metrics)</h2>
+  <ul>
+    <li><b>Smooth L2–L3 + protect early continues</b>: ad‑continue on 2nd fail (L2–L4); gem pay later. ↑ L2–L3 conversion; ↓ rage‑quits.</li>
+    <li><b>Make first key‑spend instant</b>: key pop + counter increment; auto‑pan to task. ≥95% spend within 60s.</li>
+    <li><b>Purposeful free‑booster grants</b>: tutorial, fail‑streak, milestone. Win‑lift with vs without ≤15 pts on L2–L3.</li>
+    <li><b>Increase payoff meaning</b>: bundle tasks into big reveal every ~5 min; short narrative beats. ↑ Milestone→Episode‑1 conversion.</li>
+    <li><b>Monetization after Episode‑1</b>: rewarded‑ad continues; starter pack; segment offers. ↑ ARPDAU without early retention loss.</li>
+  </ul>
+
+  <h2>6) Supporting Files</h2>
+  <ul>
+    <li>Notebook: <code>SafariCity_Funnel_Analysis.ipynb</code> (produces charts)</li>
+    <li>Data: <code>Firebase_overview - Firebase_overview.csv</code>, <code>Firebase_overview.xlsx</code></li>
+    <li>One‑pagers: <code>Task1_Funnel_Safari_City.md</code>, <code>Task2_Player_Segmentation_Safari_City.md</code></li>
+    <li>Insights: <code>Funnel_Insights_and_Recommendations.md</code></li>
+  </ul>
+
+  <p class="small">Tip: Open this file and print to PDF (Ctrl/Cmd+P → Save as PDF).</p>
+</body>
+</html>
+
+
+
