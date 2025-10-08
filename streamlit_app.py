@@ -173,70 +173,70 @@ def conversion_figure(df_funnel: pd.DataFrame, chart_type: str = "Bar"):
 
 
 def dropoff_waterfall_figure(df_funnel: pd.DataFrame) -> "px.Figure":
-	# Compute absolute drop from previous stage
-	df = df_funnel.copy()
-	if len(df) < 2:
-		return px.bar(title="Drop-offs Waterfall (needs ≥2 stages)")
-	df["prev_count"] = df["count"].shift(1)
-	df["drop_abs"] = df["prev_count"] - df["count"]
-	# First stage has no drop; set to 0 for clarity
-	df.loc[df.index[0], "drop_abs"] = 0.0
-	fig = px.waterfall(
-		df,
-		x="stage",
-		y="drop_abs",
-		title="Drop-offs by Stage (Absolute)",
-		measure=["relative"] * len(df),
-		text=df["drop_abs"].fillna(0).apply(lambda x: f"{int(x):,}"),
-		color="drop_abs",
-		color_continuous_scale=px.colors.sequential.OrRd,
-	)
-	fig.update_layout(yaxis_title="Players lost from previous stage", showlegend=False, margin=dict(l=60, r=20, t=60, b=60))
-	return fig
+    # Compute absolute drop from previous stage
+    df = df_funnel.copy()
+    if len(df) < 2:
+        return px.bar(title="Drop-offs Waterfall (needs ≥2 stages)")
+    df["prev_count"] = df["count"].shift(1)
+    df["drop_abs"] = df["prev_count"] - df["count"]
+    # First stage has no drop; set to 0 for clarity
+    df.loc[df.index[0], "drop_abs"] = 0.0
+    fig = px.waterfall(
+        df,
+        x="stage",
+        y="drop_abs",
+        title="Drop-offs by Stage (Absolute)",
+        measure=["relative"] * len(df),
+        text=df["drop_abs"].fillna(0).apply(lambda x: f"{int(x):,}"),
+        color="drop_abs",
+        color_continuous_scale=px.colors.sequential.OrRd,
+    )
+    fig.update_layout(yaxis_title="Players lost from previous stage", showlegend=False, margin=dict(l=60, r=20, t=60, b=60))
+    return fig
 
 
 def cumulative_conversion_figure(df_funnel: pd.DataFrame) -> "px.Figure":
-	if df_funnel.empty:
-		return px.line(title="Cumulative Conversion (no data)")
-	df = df_funnel.copy()
-	df["cum_conv_pct"] = (df["conv_from_start"] * 100).round(1)
-	df["idx"] = np.arange(1, len(df) + 1)
-	fig = px.line(
-		df,
-		x="idx",
-		y="cum_conv_pct",
-		markers=True,
-		title="Cumulative Conversion from Start (%)",
-	)
-	fig.update_traces(text=df["cum_conv_pct"].astype(str) + "%")
-	fig.update_layout(
-		xaxis=dict(tickmode="array", tickvals=df["idx"], ticktext=df["stage"]),
-		yaxis_title="%",
-		margin=dict(l=60, r=20, t=60, b=120),
-		showlegend=False,
-	)
-	return fig
+    if df_funnel.empty:
+        return px.line(title="Cumulative Conversion (no data)")
+    df = df_funnel.copy()
+    df["cum_conv_pct"] = (df["conv_from_start"] * 100).round(1)
+    df["idx"] = np.arange(1, len(df) + 1)
+    fig = px.line(
+        df,
+        x="idx",
+        y="cum_conv_pct",
+        markers=True,
+        title="Cumulative Conversion from Start (%)",
+    )
+    fig.update_traces(text=df["cum_conv_pct"].astype(str) + "%")
+    fig.update_layout(
+        xaxis=dict(tickmode="array", tickvals=df["idx"], ticktext=df["stage"]),
+        yaxis_title="%",
+        margin=dict(l=60, r=20, t=60, b=120),
+        showlegend=False,
+    )
+    return fig
 
 
 def drop_distribution_donut_figure(df_funnel: pd.DataFrame) -> "px.Figure":
-	if len(df_funnel) < 2:
-		return px.pie(title="Drop Distribution (needs ≥2 stages)")
-	df = df_funnel.iloc[1:].copy()
-	df["drop_abs"] = (df["drop_from_prev"] * df_funnel["count"].shift(1).iloc[1:].values).astype(float)
-	df["drop_abs"] = df["drop_abs"].fillna(0.0)
-	if df["drop_abs"].sum() <= 0:
-		return px.pie(title="Drop Distribution (no drops)")
-	fig = px.pie(
-		df,
-		values="drop_abs",
-		names="stage",
-		title="Share of Total Drop by Stage",
-		hole=0.5,
-		color_discrete_sequence=px.colors.sequential.RdPu,
-	)
-	fig.update_traces(textposition="inside", textinfo="percent+label")
-	fig.update_layout(margin=dict(l=60, r=20, t=60, b=40))
-	return fig
+    if len(df_funnel) < 2:
+        return px.pie(title="Drop Distribution (needs ≥2 stages)")
+    df = df_funnel.iloc[1:].copy()
+    df["drop_abs"] = (df["drop_from_prev"] * df_funnel["count"].shift(1).iloc[1:].values).astype(float)
+    df["drop_abs"] = df["drop_abs"].fillna(0.0)
+    if df["drop_abs"].sum() <= 0:
+        return px.pie(title="Drop Distribution (no drops)")
+    fig = px.pie(
+        df,
+        values="drop_abs",
+        names="stage",
+        title="Share of Total Drop by Stage",
+        hole=0.5,
+        color_discrete_sequence=px.colors.sequential.RdPu,
+    )
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    fig.update_layout(margin=dict(l=60, r=20, t=60, b=40))
+    return fig
 
 
 def main():
@@ -438,23 +438,23 @@ def main():
         fig_events.update_layout(showlegend=False, yaxis_title="Count", xaxis_title="Event")
         st.plotly_chart(fig_events, use_container_width=True, theme="streamlit")
 
-	st.markdown("---")
-	st.subheader("More Visuals")
-	col3, col4 = st.columns(2)
-	with col3:
-		st.caption("Drop-offs Waterfall")
-		fig_drop = dropoff_waterfall_figure(df_funnel)
-		st.plotly_chart(fig_drop, use_container_width=True, theme="streamlit")
-	with col4:
-		st.caption("Cumulative Conversion Line")
-		fig_cum = cumulative_conversion_figure(df_funnel)
-		st.plotly_chart(fig_cum, use_container_width=True, theme="streamlit")
+    st.markdown("---")
+    st.subheader("More Visuals")
+    col3, col4 = st.columns(2)
+    with col3:
+        st.caption("Drop-offs Waterfall")
+        fig_drop = dropoff_waterfall_figure(df_funnel)
+        st.plotly_chart(fig_drop, use_container_width=True, theme="streamlit")
+    with col4:
+        st.caption("Cumulative Conversion Line")
+        fig_cum = cumulative_conversion_figure(df_funnel)
+        st.plotly_chart(fig_cum, use_container_width=True, theme="streamlit")
 
-	col5, _ = st.columns([2,1])
-	with col5:
-		st.caption("Drop Distribution Donut")
-		fig_donut = drop_distribution_donut_figure(df_funnel)
-		st.plotly_chart(fig_donut, use_container_width=True, theme="streamlit")
+    col5, _ = st.columns([2,1])
+    with col5:
+        st.caption("Drop Distribution Donut")
+        fig_donut = drop_distribution_donut_figure(df_funnel)
+        st.plotly_chart(fig_donut, use_container_width=True, theme="streamlit")
 
 
 if __name__ == "__main__":
