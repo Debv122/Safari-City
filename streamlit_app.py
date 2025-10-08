@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from pathlib import Path
 
 
@@ -171,6 +172,73 @@ def conversion_figure(df_funnel: pd.DataFrame, chart_type: str = "Bar"):
     return fig
 
 
+def dropoff_waterfall_figure(df_funnel: pd.DataFrame) -> "px.Figure":
+	# Compute absolute drop from previous stage
+	df = df_funnel.copy()
+	if len(df) < 2:
+		return px.bar(title="Drop-offs Waterfall (needs ≥2 stages)")
+	df["prev_count"] = df["count"].shift(1)
+	df["drop_abs"] = df["prev_count"] - df["count"]
+	# First stage has no drop; set to 0 for clarity
+	df.loc[df.index[0], "drop_abs"] = 0.0
+	fig = px.waterfall(
+		df,
+		x="stage",
+		y="drop_abs",
+		title="Drop-offs by Stage (Absolute)",
+		measure=["relative"] * len(df),
+		text=df["drop_abs"].fillna(0).apply(lambda x: f"{int(x):,}"),
+		color="drop_abs",
+		color_continuous_scale=px.colors.sequential.OrRd,
+	)
+	fig.update_layout(yaxis_title="Players lost from previous stage", showlegend=False, margin=dict(l=60, r=20, t=60, b=60))
+	return fig
+
+
+def cumulative_conversion_figure(df_funnel: pd.DataFrame) -> "px.Figure":
+	if df_funnel.empty:
+		return px.line(title="Cumulative Conversion (no data)")
+	df = df_funnel.copy()
+	df["cum_conv_pct"] = (df["conv_from_start"] * 100).round(1)
+	df["idx"] = np.arange(1, len(df) + 1)
+	fig = px.line(
+		df,
+		x="idx",
+		y="cum_conv_pct",
+		markers=True,
+		title="Cumulative Conversion from Start (%)",
+	)
+	fig.update_traces(text=df["cum_conv_pct"].astype(str) + "%")
+	fig.update_layout(
+		xaxis=dict(tickmode="array", tickvals=df["idx"], ticktext=df["stage"]),
+		yaxis_title="%",
+		margin=dict(l=60, r=20, t=60, b=120),
+		showlegend=False,
+	)
+	return fig
+
+
+def drop_distribution_donut_figure(df_funnel: pd.DataFrame) -> "px.Figure":
+	if len(df_funnel) < 2:
+		return px.pie(title="Drop Distribution (needs ≥2 stages)")
+	df = df_funnel.iloc[1:].copy()
+	df["drop_abs"] = (df["drop_from_prev"] * df_funnel["count"].shift(1).iloc[1:].values).astype(float)
+	df["drop_abs"] = df["drop_abs"].fillna(0.0)
+	if df["drop_abs"].sum() <= 0:
+		return px.pie(title="Drop Distribution (no drops)")
+	fig = px.pie(
+		df,
+		values="drop_abs",
+		names="stage",
+		title="Share of Total Drop by Stage",
+		hole=0.5,
+		color_discrete_sequence=px.colors.sequential.RdPu,
+	)
+	fig.update_traces(textposition="inside", textinfo="percent+label")
+	fig.update_layout(margin=dict(l=60, r=20, t=60, b=40))
+	return fig
+
+
 def main():
     st.set_page_config(page_title="Safari City Funnel", layout="wide")
     st.title("Safari City — Early Funnel Dashboard")
@@ -190,6 +258,8 @@ def main():
     st.sidebar.header("Funnel Inputs")
     mode = st.sidebar.radio("Input method", ["Manual", "Upload CSV"], index=0)
 
+    raw_events = {"first_open": None, "level_end": None, "in_app_purchase": None, "app_remove": None, "session_start": None}
+
     if mode == "Upload CSV":
         st.sidebar.caption("Upload either: (1) stage,count CSV; or (2) Firebase overview CSV")
         uploaded = st.sidebar.file_uploader("Upload CSV", type=["csv"]) 
@@ -203,7 +273,7 @@ def main():
                 return {str(r[stage_col]): float(r[count_col]) for _, r in df2.iterrows()}
             raise KeyError("stage,count columns not found")
 
-        def parse_firebase_overview_csv(raw_text: str) -> dict:
+        def parse_firebase_overview_csv(raw_text: str) -> tuple[dict, dict]:
             # Extract the block starting at 'Event name,Event count'
             lines = [ln.strip() for ln in raw_text.splitlines()]
             counts = {}
@@ -227,22 +297,29 @@ def main():
                 # try generic two-column at first non-comment row
                 try:
                     df_tmp = pd.read_csv(pd.compat.StringIO(raw_text), comment="#", header=0)
-                    return parse_stage_count_csv(df_tmp)
+                    return parse_stage_count_csv(df_tmp), {}
                 except Exception:
-                    return {}
+                    return {}, {}
             # Map to a simple 4-stage funnel
             installs = counts.get("first_open", 0.0)
             level_end = counts.get("level_end", 0.0)
             iap = counts.get("in_app_purchase", 0.0)
             uninstall = counts.get("app_remove", 0.0)
+            session_start = counts.get("session_start", 0.0)
             if installs or level_end or iap or uninstall:
                 return {
                     "Installs": installs,
                     "Level Completed": level_end,
                     "In-App Purchase": iap,
                     "Uninstall": uninstall,
+                }, {
+                    "first_open": installs,
+                    "level_end": level_end,
+                    "in_app_purchase": iap,
+                    "app_remove": uninstall,
+                    "session_start": session_start,
                 }
-            return {}
+            return {}, {}
 
         if uploaded is not None:
             try:
@@ -254,7 +331,9 @@ def main():
                     # Fallback: treat as Firebase overview style with multiple tables
                     uploaded.seek(0)
                     text = uploaded.read().decode("utf-8", errors="ignore")
-                    counts_map = parse_firebase_overview_csv(text)
+                    counts_map, raw_events_map = parse_firebase_overview_csv(text)
+                    if raw_events_map:
+                        raw_events.update(raw_events_map)
                     if not counts_map:
                         raise ValueError("Unsupported CSV format – expected 'stage,count' or Firebase overview with 'Event name,Event count'.")
                 except Exception as e:
@@ -266,6 +345,14 @@ def main():
         counts_map = {}
         for stage, val in default_counts.items():
             counts_map[stage] = st.sidebar.number_input(stage, min_value=0.0, value=float(val), step=100.0)
+
+    # Optional KPI inputs when not provided via CSV
+    st.sidebar.header("KPI Events (optional)")
+    raw_events["first_open"] = st.sidebar.number_input("first_open (installs)", min_value=0.0, value=float(raw_events["first_open"] or 0.0), step=100.0)
+    raw_events["level_end"] = st.sidebar.number_input("level_end (completions)", min_value=0.0, value=float(raw_events["level_end"] or 0.0), step=100.0)
+    raw_events["in_app_purchase"] = st.sidebar.number_input("in_app_purchase", min_value=0.0, value=float(raw_events["in_app_purchase"] or 0.0), step=10.0)
+    raw_events["app_remove"] = st.sidebar.number_input("app_remove (uninstall)", min_value=0.0, value=float(raw_events["app_remove"] or 0.0), step=10.0)
+    raw_events["session_start"] = st.sidebar.number_input("session_start", min_value=0.0, value=float(raw_events["session_start"] or 0.0), step=100.0)
 
     df_funnel = compute_funnel(counts_map)
 
@@ -289,6 +376,85 @@ def main():
             st.write(f"- Largest drop at '{row['stage']}': {row['drop_from_prev']*100:.1f}% from previous stage")
     else:
         st.write("Add more stages to see insights.")
+
+    st.markdown("---")
+    st.subheader("Business Questions")
+    st.caption("How many install? What % complete a level? purchase? uninstall? sessions per player?")
+
+    installs = float(raw_events["first_open"] or 0.0)
+    level_end = float(raw_events["level_end"] or 0.0)
+    iap = float(raw_events["in_app_purchase"] or 0.0)
+    uninstall = float(raw_events["app_remove"] or 0.0)
+    session_start = float(raw_events["session_start"] or 0.0)
+
+    lvl_completion = (level_end / installs * 100.0) if installs else 0.0
+    purchase_rate = (iap / installs * 100.0) if installs else 0.0
+    uninstall_rate = (uninstall / installs * 100.0) if installs else 0.0
+    avg_sessions_pp = (session_start / installs) if installs else 0.0
+
+    kpi_cols = st.columns(4)
+    with kpi_cols[0]:
+        st.write("Level completion %")
+        st.plotly_chart(go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=round(lvl_completion, 1),
+            number={"suffix": "%"},
+            gauge={"axis": {"range": [0, 100]}, "bar": {"color": "#34c759"}},
+            title={"text": "Completion"},
+        )), use_container_width=True)
+    with kpi_cols[1]:
+        st.write("Purchase %")
+        st.plotly_chart(go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=round(purchase_rate, 2),
+            number={"suffix": "%"},
+            gauge={"axis": {"range": [0, 5]}, "bar": {"color": "#5856d6"}},
+            title={"text": "Purchase"},
+        )), use_container_width=True)
+    with kpi_cols[2]:
+        st.write("Uninstall %")
+        st.plotly_chart(go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=round(uninstall_rate, 1),
+            number={"suffix": "%"},
+            gauge={"axis": {"range": [0, 40]}, "bar": {"color": "#ff3b30"}},
+            title={"text": "Uninstall"},
+        )), use_container_width=True)
+    with kpi_cols[3]:
+        st.write("Avg sessions / player")
+        st.plotly_chart(go.Figure(go.Indicator(
+            mode="number",
+            value=round(avg_sessions_pp, 2),
+            title={"text": "Sessions/Player"},
+        )), use_container_width=True)
+
+    # Event counts bar answering "How many install?"
+    if any(v > 0 for v in [installs, level_end, iap, uninstall, session_start]):
+        df_events = pd.DataFrame({
+            "event": ["first_open", "level_end", "in_app_purchase", "app_remove", "session_start"],
+            "count": [installs, level_end, iap, uninstall, session_start],
+        })
+        fig_events = px.bar(df_events, x="event", y="count", title="Firebase Event Counts", color="event")
+        fig_events.update_layout(showlegend=False, yaxis_title="Count", xaxis_title="Event")
+        st.plotly_chart(fig_events, use_container_width=True, theme="streamlit")
+
+	st.markdown("---")
+	st.subheader("More Visuals")
+	col3, col4 = st.columns(2)
+	with col3:
+		st.caption("Drop-offs Waterfall")
+		fig_drop = dropoff_waterfall_figure(df_funnel)
+		st.plotly_chart(fig_drop, use_container_width=True, theme="streamlit")
+	with col4:
+		st.caption("Cumulative Conversion Line")
+		fig_cum = cumulative_conversion_figure(df_funnel)
+		st.plotly_chart(fig_cum, use_container_width=True, theme="streamlit")
+
+	col5, _ = st.columns([2,1])
+	with col5:
+		st.caption("Drop Distribution Donut")
+		fig_donut = drop_distribution_donut_figure(df_funnel)
+		st.plotly_chart(fig_donut, use_container_width=True, theme="streamlit")
 
 
 if __name__ == "__main__":
